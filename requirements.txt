@@ -1,13 +1,6 @@
-# 核心依赖（app.py 股票行情监测）
+# app.py 股票行情监测（Streamlit Cloud 部署与本地运行都用这份）
 streamlit
 akshare
 pandas
 plotly
-
-# RAG Demo（rag_demo.py）
-sentence-transformers
-chromadb
-
-# LSTM 预测（lstm_predict.py）
-torch
-numpy
+requests

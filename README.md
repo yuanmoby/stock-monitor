@@ -16,8 +16,11 @@
 ```bash
 # 1. 安装 Python 3.10+（安装时勾选 Add Python to PATH）
 
-# 2. 安装依赖（国内建议用清华镜像）
+# 2. 网站（app.py）依赖
 pip install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
+
+# 3. 两个 ML 脚本的依赖（只在本机学习用，不参与网站部署）
+pip install -r requirements-ml.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
 ```
 
 > Windows 提示：如果 `import torch` 报 `WinError 1114 / c10.dll` 加载失败，
@@ -29,6 +32,7 @@ pip install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
 ```bash
 # 项目1：股票行情监测（浏览器自动打开 localhost:8501）
 streamlit run app.py
+# 同一 WiFi 下的手机可访问 http://你的电脑IP:8501
 
 # 项目2：RAG Demo（首次运行自动下载约100MB中文Embedding模型）
 python rag_demo.py
@@ -37,6 +41,18 @@ python rag_demo.py
 # 项目3：LSTM 预测（约1-2分钟出结果）
 python lstm_predict.py
 ```
+
+## 部署到公网（免费，手机流量也能访问）
+
+Streamlit Community Cloud 免费托管，任何设备任何网络都能打开：
+
+1. 把本项目推送到 GitHub（见下一节）
+2. 浏览器打开 [share.streamlit.io](https://share.streamlit.io)，用 GitHub 账号登录
+3. 点 "Create app" → 选仓库 `stock-monitor`、分支 `main`、入口文件 `app.py` → Deploy
+4. 几分钟后得到公网地址：`https://你的账号-stock-monitor.streamlit.app`，手机 4G/5G 直接访问
+
+> 免费版特点：网站闲置几分钟后会休眠，下次访问自动唤醒（约 1 分钟）；
+> 云服务器在海外，行情接口偶发连不上时会自动显示仓库里预置的缓存数据。
 
 ## 上传 GitHub（简历里放链接，可信度提升十倍）
 

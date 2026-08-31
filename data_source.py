@@ -90,10 +90,15 @@ def _cache_path(name: str) -> Path:
 
 
 def _save_json(obj: dict, name: str):
-    CACHE_DIR.mkdir(exist_ok=True)
-    _cache_path(name).write_text(
-        json.dumps(obj, ensure_ascii=False, indent=2), encoding="utf-8"
-    )
+    """尽力保存到磁盘。云端（如 Streamlit Cloud）文件系统只读，
+    写入失败直接忽略——云端本来就自带内存缓存，不影响功能。"""
+    try:
+        CACHE_DIR.mkdir(exist_ok=True)
+        _cache_path(name).write_text(
+            json.dumps(obj, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
+    except OSError:
+        pass
 
 
 def _load_json(name: str):
@@ -192,8 +197,12 @@ def load_kline(stock_code: str, days: int = 60) -> tuple[pd.DataFrame, bool]:
     except Exception:
         df = None
     if df is not None and not df.empty:
-        CACHE_DIR.mkdir(exist_ok=True)
-        df.to_csv(_cache_path(f"kline_{stock_code}.csv"), index=False, encoding="utf-8")
+        # 尽力保存到磁盘；云端只读文件系统会写入失败，直接忽略
+        try:
+            CACHE_DIR.mkdir(exist_ok=True)
+            df.to_csv(_cache_path(f"kline_{stock_code}.csv"), index=False, encoding="utf-8")
+        except OSError:
+            pass
         return df, False
     p = _cache_path(f"kline_{stock_code}.csv")
     if p.exists():

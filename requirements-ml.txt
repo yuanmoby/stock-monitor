@@ -1,0 +1,5 @@
+# rag_demo.py 与 lstm_predict.py（本地学习用，不参与网站部署）
+sentence-transformers
+chromadb
+torch
+numpy
