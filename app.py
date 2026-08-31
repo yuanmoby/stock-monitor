@@ -6,7 +6,13 @@
 """
 
 import re
+import sys
 from datetime import datetime
+
+# Windows 中文控制台默认 GBK 编码，打印 ⚠ 等 emoji 会报 UnicodeEncodeError，
+# 统一把标准输出切到 UTF-8（Win11 终端默认支持 UTF-8 显示）
+if sys.stdout.encoding and sys.stdout.encoding.lower() not in ("utf-8", "utf8"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 import pandas as pd
 import plotly.graph_objects as go
@@ -79,8 +85,15 @@ with st.expander("📋 常用股票快速选择"):
     cols = st.columns(6)
     for i, (name, code) in enumerate(common_stocks.items()):
         with cols[i % 6]:
-            if st.button(f"{code} {name}", key=f"pick_{code}", width='stretch'):
-                st.session_state["stock_code"] = code
+            # 快捷选股用回调实现：回调在页面重跑之前执行，
+            # 此时修改 stock_code 控件状态是合法的（新版 Streamlit 不允许
+            # 在控件实例化之后的脚本里直接改，见下方注释），点一下立即生效
+            st.button(
+                f"{code} {name}",
+                key=f"pick_{code}",
+                width='stretch',
+                on_click=lambda c=code: st.session_state.update({"stock_code": c}),
+            )
 
 
 # ============================================================
@@ -206,7 +219,11 @@ if not valid:
     st.info("💡 请输入6位数字的股票代码，例如：000001（平安银行）")
 elif need_load:
     with st.spinner("⏳ 正在获取行情数据..."):
-        data, quote_from_cache = cached_quote(code)
+        try:
+            data, quote_from_cache = cached_quote(code)
+        except Exception as e:
+            st.error(f"❌ {e}，请稍后重试")
+            data, quote_from_cache = None, False
         try:
             kline, kline_from_cache = cached_kline(code)
         except Exception as e:

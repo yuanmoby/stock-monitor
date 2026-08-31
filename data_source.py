@@ -135,17 +135,27 @@ def _fetch_quote(stock_code: str) -> dict | None:
 
 def get_quote(stock_code: str) -> tuple[dict | None, bool]:
     """获取实时报价。返回 (行情字典, 是否来自缓存)。
-    接口失败时降级到本地缓存，彻底不可用才返回 (None, False)。"""
+
+    三种结果区分清楚（对用户诚实）：
+    - 接口正常且有数据 → (行情, False)
+    - 接口失败但本地有缓存 → (缓存行情, True)
+    - 接口失败且无缓存 → 抛异常（由调用方提示"接口暂不可用"）
+    - 接口正常但查无此股 → (None, False)（由调用方提示"未找到"）
+    """
+    network_error = False
     try:
-        quote = _fetch_quote(stock_code)
+        quote = _fetch_quote(stock_code)  # None 表示确实没有这只股票
     except Exception:
         quote = None
+        network_error = True
     if quote is not None:
         _save_json(quote, f"quote_{stock_code}.json")
         return quote, False
     cached = _load_json(f"quote_{stock_code}.json")
     if cached is not None:
         return cached, True
+    if network_error:
+        raise RuntimeError(f"行情接口暂不可用，且 {stock_code} 无本地缓存")
     return None, False
 
 
