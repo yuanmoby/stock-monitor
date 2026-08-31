@@ -49,9 +49,14 @@ QUOTE_URL = "https://push2.eastmoney.com/api/qt/stock/get"
 QUOTE_FIELDS = "f43,f44,f45,f46,f47,f48,f57,f58,f60,f168,f169,f170,f162"
 
 
-def with_retries(func, attempts: int = 4, backoff: float = 2.5):
-    """指数退避重试装饰器：失败后等 backoff*1、backoff*2... 秒再试。
-    对抗东财接口的偶发断连（断连往往成串出现，间隔太短的重试没用）。"""
+def with_retries(func, attempts: int = 3, backoff: float = 1.5):
+    """指数退避重试装饰器：失败后等 backoff*1、backoff*2 秒再试。
+
+    参数的取舍（初版是 4 次重试、间隔 2.5s 起，最长要等 15 秒）：
+    东财断连往往成串出现，重试太少熬不过"断连风暴"；但页面查询是
+    交互场景，用户等 15 秒体验太差。折中为 3 次重试、1.5s 起递增，
+    最长约 4.5 秒就降级到本地缓存——体验和韧性之间取平衡，
+    兜底靠缓存预热（见 scripts/warm_cache.py）。"""
 
     def wrapper(*args, **kwargs):
         last_exc = None
@@ -200,11 +205,12 @@ def load_kline(stock_code: str, days: int = 60) -> tuple[pd.DataFrame, bool]:
         # 尽力保存到磁盘；云端只读文件系统会写入失败，直接忽略
         try:
             CACHE_DIR.mkdir(exist_ok=True)
-            df.to_csv(_cache_path(f"kline_{stock_code}.csv"), index=False, encoding="utf-8")
+            df.to_csv(_cache_path(f"kline_{stock_code}_{days}.csv"), index=False, encoding="utf-8")
         except OSError:
             pass
         return df, False
-    p = _cache_path(f"kline_{stock_code}.csv")
+    # 缓存文件名带天数，60日与330日的缓存互不串用
+    p = _cache_path(f"kline_{stock_code}_{days}.csv")
     if p.exists():
         cached = pd.read_csv(p, encoding="utf-8")
         if not cached.empty:
