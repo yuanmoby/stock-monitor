@@ -38,7 +38,14 @@ if sys.stdout.encoding and sys.stdout.encoding.lower() not in ("utf-8", "utf8"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from data_source import get_quote, load_kline  # noqa: E402
+from data_source import (  # noqa: E402
+    BROWSER_UA,
+    _load_json,
+    _save_json,
+    get_quote,
+    load_kline,
+    with_retries,
+)
 
 API_URL = "https://api.deepseek.com/chat/completions"
 MODEL = "deepseek-chat"
@@ -58,6 +65,9 @@ STOCK_NAMES = {
     "隆基绿能": "601012", "恒瑞医药": "600276", "迈瑞医疗": "300760",
     "东方财富": "300059", "中信证券": "600030", "格力电器": "000651",
     "美的集团": "000333", "紫金矿业": "601899", "药明康德": "603259",
+    # 2026 热门股（本地兜底，接口断连时也能查到）
+    "宇树科技": "688836", "昆仑万维": "300418", "三六零": "601360",
+    "浪潮信息": "000977", "中科曙光": "603019", "拓尔思": "300229",
 }
 
 
@@ -129,11 +139,56 @@ TOOLS = [
 # 工具实现（真正的执行逻辑，复用 data_source 数据层）
 # ------------------------------------------------------------
 
+# 东财股票搜索接口（网页搜索框同款）：支持全部A股，避免静态表漏掉新股
+SEARCH_URL = "https://searchapi.eastmoney.com/api/suggest/get"
+SEARCH_TOKEN = "D43BF722C8E33BDC906FB84D85E326E8"  # 东财网页公开的固定token
+
+
+@with_retries
+def _search_stock_api(keyword: str) -> str | None:
+    """按关键词搜索A股，返回 "名称(代码)" 列表文本；无结果返回 None"""
+    resp = requests.get(
+        SEARCH_URL,
+        params={"input": keyword, "type": 14, "count": 10, "token": SEARCH_TOKEN},
+        headers={"User-Agent": BROWSER_UA},
+        timeout=10,
+    )
+    resp.raise_for_status()
+    rows = (resp.json().get("QuotationCodeTable") or {}).get("Data") or []
+    # 只保留A股：主板 Classify 是 "AStock"，科创板/创业板是数字（如 "23"），
+    # 所以按 SecurityTypeName 白名单过滤更可靠（排除港股/美股/基金等）
+    a_share_types = {"沪A", "深A", "科创板", "创业板", "北交所"}
+    a_stocks = [
+        f"{x['Name']}({x['Code']})"
+        for x in rows
+        if x.get("Code")
+        and (x.get("Classify") == "AStock" or x.get("SecurityTypeName") in a_share_types)
+    ]
+    return "、".join(a_stocks[:8]) if a_stocks else None
+
+
 def _tool_find_stock_code(keyword: str) -> str:
-    hits = [f"{name}({code})" for name, code in STOCK_NAMES.items() if keyword in name]
-    if not hits:
-        return f"未找到名称包含「{keyword}」的股票，请换个关键词"
-    return "匹配到：" + "、".join(hits)
+    kw = keyword.strip()
+    # 第1层：东财搜索接口（覆盖全A股5000+只，新股也能查到）
+    try:
+        result = _search_stock_api(kw)
+        if result:
+            _save_json({"result": result}, f"search_{kw}.json")  # 存进搜索缓存
+            return f"搜索到（东财接口）：{result}"
+    except Exception:
+        pass  # 接口失败 → 往下一层兜底
+    # 第2层：搜索磁盘缓存（之前接口成功搜过这个关键词）
+    cached = _load_json(f"search_{kw}.json")
+    if cached and cached.get("result"):
+        return f"匹配到（搜索缓存）：{cached['result']}"
+    # 第3层：本地静态表（接口和缓存都没有时兜底）
+    hits = [f"{name}({code})" for name, code in STOCK_NAMES.items() if kw in name]
+    if hits:
+        return f"匹配到（本地表）：" + "、".join(hits)
+    return (
+        f"东财接口、搜索缓存和本地表都没有查到名称包含「{keyword}」的A股股票。"
+        f"注意：查不到≠未上市，可能是名称写法不同或不属于A股，请向用户如实说明，不要断言未上市。"
+    )
 
 
 def _tool_get_stock_quote(stock_code: str) -> str:
@@ -185,7 +240,9 @@ SYSTEM_PROMPT = """你是一个A股行情问答助手，可以调用工具查询
 2. 回答要给出关键数字和单位（元、亿元、%），并说明数据是实时还是缓存。
 3. 严禁编造数据：工具没有返回的信息，就说查不到。
 4. 数据若来自缓存（接口暂不可用时），要提醒用户"这是缓存数据，不是实时价"。
-5. 回答简洁，用中文。"""
+5. 严禁用你自己的训练知识断言"某公司没有上市/没有这只股票"——你的知识会过时，
+   查不到只说明工具查不到，只能如实说"我的工具没有查到"。
+6. 回答简洁，用中文。"""
 
 
 class StockAgent:

@@ -21,9 +21,15 @@ st.title("🤖 AI 股票问答 Agent")
 st.caption("基于 DeepSeek 函数调用 · 工具：实时行情 / K线走势摘要 / 股票代码速查")
 
 # Agent 只创建一次（含 API 客户端），放进缓存避免重复初始化
+# API Key 读取顺序：Streamlit Cloud Secrets（部署版）→ 环境变量/.env（本地版）
 @st.cache_resource
 def get_agent() -> StockAgent:
-    return StockAgent()
+    cloud_key = None
+    try:
+        cloud_key = st.secrets["DEEPSEEK_API_KEY"]
+    except Exception:
+        pass
+    return StockAgent(api_key=cloud_key)
 
 
 @st.cache_resource
