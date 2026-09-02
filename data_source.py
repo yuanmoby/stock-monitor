@@ -215,4 +215,10 @@ def load_kline(stock_code: str, days: int = 60) -> tuple[pd.DataFrame, bool]:
         cached = pd.read_csv(p, encoding="utf-8")
         if not cached.empty:
             return cached, True
+    # 跨天数复用：请求30天但只有60天缓存时，截尾部30天顶上（同一数据源，只是更长窗口）
+    candidates = sorted(CACHE_DIR.glob(f"kline_{stock_code}_*.csv")) if CACHE_DIR.exists() else []
+    if candidates:
+        cached = pd.read_csv(candidates[-1], encoding="utf-8")
+        if not cached.empty and len(cached) >= days:
+            return cached.tail(days), True
     raise RuntimeError(f"获取 {stock_code} K线失败，且无本地缓存可用")

@@ -4,5 +4,9 @@ __pycache__/
 .venv/
 venv/
 
+# 密钥（绝不能提交）
+.env
+*.env
+
 # 临时文件
 *.tmp

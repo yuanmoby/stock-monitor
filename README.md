@@ -1,12 +1,13 @@
-# 📈 股票行情监测 + RAG + LSTM 项目合集
+# 📈 股票行情监测 + RAG + LSTM + Agent 项目合集
 
-个人 AI 学习项目，覆盖 AI 应用开发的核心链路：**数据获取 → 数据处理 → 可视化 → 向量检索 → 模型训练**。
+个人 AI 学习项目，覆盖 AI 应用开发的核心链路：**数据获取 → 数据处理 → 可视化 → 向量检索 → 模型训练 → 智能体（Agent）**。
 
 ## 项目清单
 
 | 项目 | 文件 | 技术栈 | 核心能力 |
 |------|------|--------|---------|
 | 实时股票行情监测 | `app.py` | Streamlit / Plotly / Pandas | API 对接、双层缓存、交互式可视化 |
+| AI 股票问答 Agent | `agent.py` / `app_agent.py` | DeepSeek Function Calling / requests | 工具调用循环、大模型智能体 |
 | RAG 财报问答 Demo | `rag_demo.py` | sentence-transformers / ChromaDB | Embedding 向量化、向量检索、Prompt 工程 |
 | LSTM 股价涨跌预测 | `lstm_predict.py` | PyTorch | 时间序列建模、模型训练与评估 |
 | 数据源封装（共用） | `data_source.py` | requests / akshare | 接口风控应对、重试退避、本地缓存降级 |
@@ -34,11 +35,16 @@ pip install -r requirements-ml.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
 streamlit run app.py
 # 同一 WiFi 下的手机可访问 http://你的电脑IP:8501
 
-# 项目2：RAG Demo（首次运行自动下载约100MB中文Embedding模型）
+# 项目2：AI 股票问答 Agent（网页聊天：streamlit run app_agent.py）
+# 命令行版：python agent.py "茅台最近30天走势怎么样？"
+# 需要 DeepSeek API Key：在项目目录新建 .env 文件写入 DEEPSEEK_API_KEY=sk-xxxx
+# （到 https://platform.deepseek.com 注册创建，费用极低）
+
+# 项目3：RAG Demo（首次运行自动下载约100MB中文Embedding模型）
 python rag_demo.py
 # 若模型下载慢，先执行：set HF_ENDPOINT=https://hf-mirror.com
 
-# 项目3：LSTM 预测（约1-2分钟出结果）
+# 项目4：LSTM 预测（约1-2分钟出结果）
 python lstm_predict.py
 
 # 可选：给常用12只股票预热缓存（接口断连时演示不断档）
@@ -87,7 +93,14 @@ git push -u origin main
 - **输入框切代码就自动加载是怎么实现的？** 用 `st.session_state["shown_code"]` 记录当前展示的代码，与输入框值不一致就触发加载；按钮负责手动刷新。
 - **MA5/MA10 均线为什么加？** 均线是观察短期趋势最基础的指标，用 `rolling(5).mean()` 两行就能算出来，却让图的信息量大增。
 
-### rag_demo.py 的设计决策
+### agent.py — AI Agent 的设计决策（投 Agent 岗必讲）
+
+- **Agent 和普通大模型对话的区别？** 普通对话模型只能凭训练记忆回答，查不了实时数据。Agent 给模型一份"工具清单"（JSON Schema 描述的函数），模型判断"这个问题需要查数据"，返回工具调用请求，程序执行后把结果回传，模型再生成回答——"提问 → 调用工具 → 拿结果 → 再回答"循环，最多 5 轮。
+- **为什么手写循环、不用 LangChain？** 函数调用的底层就是 OpenAI 兼容协议：POST /chat/completions，body 里带 messages + tools；模型返回 tool_calls；执行后把结果以 role=tool 追加回历史再请求。手写一遍 100 行，机制完全透明，之后再学框架就知道每层在做什么。本项目用 requests 直连 DeepSeek 接口，连 SDK 都没用。
+- **为什么工具失败返回错误文本而不是崩溃？** 把错误信息作为工具结果回传给模型，模型会自动换思路（比如换个关键词重查）。容错设计是 Agent 工程化的基本要求。
+- **为什么温度设 0.3？** 行情问答要稳定准确，不需要创意；低温度减少乱调用工具的幻觉。
+- **Agent 和 RAG 什么关系？** 互补：RAG 给模型"资料"，Agent 给模型"手脚"。RAG 解决"知识幻觉"，Agent 解决"能力幻觉"。生产系统常组合使用。
+- **工具执行为什么复用 data_source？** Agent 的工具和股票网站共用同一套数据层（重试、缓存降级全继承），既避免重复代码，也保证 Agent 查到的数据和网站一致。
 
 - **为什么用 BGE 模型？** 智源开源的中文 Embedding 模型，中文语义效果好，免费可商用；财报术语的中文向量表示优于通用英文模型。
 - **为什么向量库指定余弦空间？** BGE 训练目标基于余弦相似度（向量方向比长度重要），ChromaDB 默认是 L2 距离，所以显式指定 `hnsw:space=cosine`，相似度 = 1 - distance。
