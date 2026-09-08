@@ -18,6 +18,12 @@ import sys
 if sys.stdout.encoding and sys.stdout.encoding.lower() not in ("utf-8", "utf8"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
+import os
+
+# 国内网络直连 huggingface.co 经常超时（WinError 10060），
+# 自动切换到 hf-mirror 镜像站下载模型；自己配过 HF_ENDPOINT 的话以你的为准
+os.environ.setdefault("HF_ENDPOINT", "https://hf-mirror.com")
+
 from sentence_transformers import SentenceTransformer
 import chromadb
 import numpy as np

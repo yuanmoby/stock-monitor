@@ -41,8 +41,8 @@ streamlit run app.py
 # （到 https://platform.deepseek.com 注册创建，费用极低）
 
 # 项目3：RAG Demo（首次运行自动下载约100MB中文Embedding模型）
+# 代码已内置国内镜像（hf-mirror.com），直连超时自动走镜像，无需手动配置
 python rag_demo.py
-# 若模型下载慢，先执行：set HF_ENDPOINT=https://hf-mirror.com
 
 # 项目4：LSTM 预测（约1-2分钟出结果）
 python lstm_predict.py
@@ -121,7 +121,7 @@ git push -u origin main
 | `pip install` 慢/失败 | 加 `-i https://pypi.tuna.tsinghua.edu.cn/simple` |
 | `import torch` 报 c10.dll 错误 | 安装最新版 VC++ 运行库（见"环境准备"） |
 | 行情接口偶发失败 | 重试机制 + 本地缓存自动降级，等几分钟即可恢复；接口对高频请求有风控，正常使用频率不会触发 |
-| RAG 模型下载慢 | `set HF_ENDPOINT=https://hf-mirror.com` |
+| RAG 模型下载慢/超时 | 代码已自动走 hf-mirror.com 镜像；若仍失败，手动执行 `set HF_ENDPOINT=https://hf-mirror.com` 再运行 |
 | 页面加载慢 | 首次拉取约 10-20 秒，之后走缓存 |
 
 ## 免责声明
