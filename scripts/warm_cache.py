@@ -48,6 +48,14 @@ def main():
             fail += 1
             print(f"[{name} {code}] 失败：{str(e)[:60]}（重试耗尽，跳过，下次再预热）")
             time.sleep(INTERVAL)
+    # LSTM 脚本固定用茅台的330个交易日数据，单独预热一份长窗口缓存
+    try:
+        df_lstm, fc_lstm = load_kline("600519", days=330)
+        time.sleep(INTERVAL)
+        print(f"[贵州茅台 600519] LSTM用330日K线：{len(df_lstm)}根（{'缓存' if fc_lstm else '实时'}）")
+    except Exception as e:
+        print(f"[贵州茅台 600519] LSTM用330日K线失败：{str(e)[:50]}（可稍后单独重试）")
+
     print(f"\n完成：报价 {ok_quote}/12，K线 {ok_kline}/12，失败 {fail}")
 
 

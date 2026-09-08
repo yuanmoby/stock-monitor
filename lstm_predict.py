@@ -34,7 +34,14 @@ print("=" * 60)
 print("\n📊 正在获取股票历史数据...")
 
 # 拿贵州茅台最近约330个交易日（≈500自然日）的日线数据（前复权）
-df, from_cache = load_kline("600519", days=330)
+try:
+    df, from_cache = load_kline("600519", days=330)
+except RuntimeError as e:
+    # 接口彻底不可用且无本地缓存：给出友好提示而不是堆错误栈
+    print(f"❌ {e}")
+    print("   建议：稍等几分钟（东财风控会自动解除）后重试，")
+    print("   或先运行 `py scripts/warm_cache.py` 预热缓存。")
+    raise SystemExit(1)
 if from_cache:
     print("   ⚠️ 行情接口暂不可用，本次使用本地缓存数据（上次成功拉取）")
 print(f"   获取到 {len(df)} 条日线数据")
